@@ -74,13 +74,13 @@
  */
  
 
-#define SAMPLE_NUM			4096 // 2048
+#define SAMPLE_NUM			8192 // 4096
 #define CR              0x0D
 #define LF              0x0A
 //#define ARMBITREVINDEXTABLE1024_TABLE_LENGTH ((uint16_t)1800)
 #define ARMBITREVINDEXTABLE2048_TABLE_LENGTH ((uint16_t)3808)
 #define ARMBITREVINDEXTABLE4096_TABLE_LENGTH ((uint16_t)4032)
-float32_t resultsBuffer[4096]; //2048
+float32_t resultsBuffer[8192]; //4092
 float32_t magnitudeBuffer[SAMPLE_NUM/2];
 static volatile uint16_t resPos;
 volatile char						disADC; //changed all flags to volatile
@@ -94,14 +94,14 @@ uint64_t   current_hsmclk;
 uint64_t   current_mclk;
 uint32_t   result; //possibly change to volatile once try to implement main loop again
 uint16_t   uart_out_count;
-uint32_t   fftSize = 2048; //1024
+uint32_t   fftSize = 4096; //2048
 uint32_t   ifftFlag = 0;
 uint32_t   doBitReverse = 1;
 
 //static float32_t testOutput[SAMPLE_NUM/2];
 
 const arm_cfft_instance_f32 fft_settings = {
-	2048, twiddleCoef_2048, armBitRevIndexTable2048, ARMBITREVINDEXTABLE2048_TABLE_LENGTH
+	4096, twiddleCoef_4096, armBitRevIndexTable4096, ARMBITREVINDEXTABLE4096_TABLE_LENGTH
 }; //all 1024 stuff originally
 
  
@@ -131,7 +131,7 @@ const eUSCI_UART_Config uartConfig =
 		EUSCI_A_UART_CLOCKSOURCE_ACLK,          // ACLK Clock Source @32.768KHz
         3,                                     // BRDIV = 78
         0,                                       // UCxBRF = 2
-        146,                                       // UCxBRS = 0
+        132,                                       // UCxBRS = 0
         EUSCI_A_UART_NO_PARITY,                  // No Parity
         EUSCI_A_UART_LSB_FIRST,                  // LSB First
         EUSCI_A_UART_ONE_STOP_BIT,               // One stop bit
@@ -235,6 +235,7 @@ int main(void)
     MAP_FlashCtl_setWaitState(FLASH_BANK0, 1);
     MAP_FlashCtl_setWaitState(FLASH_BANK1, 1);
     CS_startHFXT(false);
+    CS_setReferenceOscillatorFrequency(CS_REFO_128KHZ); //originally 32KHz
     //SMCLK for Timer A
     //HSMCLK for ADC
     //ACLK for UART
@@ -339,27 +340,27 @@ void ADC14_IRQHandler(void)
 			uart_out_count = 0; //index
 			//write_data = 1;
 		}
-		else if(begin_sample == 1 && resPos < 4096){ //if
+		else if(begin_sample == 1 && resPos < 8192){ //4096
 			resultsBuffer[resPos] = result;
 			resPos++;
 		}
-		else if(begin_sample == 1 && resPos >= 4096){
+		else if(begin_sample == 1 && resPos >= 8192){ //4096
 			begin_sample = 0;
 			send_data = 1;
 		}
-		else if(send_data == 1 && uart_out_count < 4096) //if
+		else if(send_data == 1 && uart_out_count < 8192) //4096
 		{
 			UART_OutUDec(resultsBuffer[uart_out_count]);
 			UART_OutChar(CR);
 			UART_OutChar(LF);
 			uart_out_count++;
 		}
-		else if(send_data == 1 && uart_out_count >= 4096){
+		else if(send_data == 1 && uart_out_count >= 8192){ //4096
 			send_data = 0;
 			do_fft = 1;
 			
 		}
-		//all else if originally 1024
+
 		else if(do_fft == 1){
 			UART_OutString("FFT");
 			UART_OutChar(CR);
@@ -368,7 +369,7 @@ void ADC14_IRQHandler(void)
 			arm_cfft_f32(&fft_settings, resultsBuffer, ifftFlag, doBitReverse);
 			arm_cmplx_mag_f32(resultsBuffer, magnitudeBuffer, fftSize);
 			int mag_ind = 1;
-			for(mag_ind = 1; mag_ind < 2048; mag_ind = mag_ind+1){
+			for(mag_ind = 1; mag_ind < 4096; mag_ind = mag_ind+1){ //2048
 				ftoa(magnitudeBuffer[mag_ind],mag_string,8);
 				UART_OutString(mag_string);
 				UART_OutChar(CR);
